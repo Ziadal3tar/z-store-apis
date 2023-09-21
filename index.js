@@ -29,7 +29,7 @@ app.use('/coupon', indexRouter.couponRouter)
 app.use('/cart', indexRouter.cartRouter)
 app.use('/store', indexRouter.storeRouter)
 app.use('/chat', indexRouter.chatRouter)
-app.get('/', (req, res) => res.send('shop module!'))
+app.get('/', (req, res) => res.send('shop module.!'))
 app.use('*', (req, res, next) => {
     res.send("In-valid Route pls check url or method")
 })
