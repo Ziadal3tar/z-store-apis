@@ -82,7 +82,7 @@ export const signUp = asyncHandler(async (req, res, next) => {
     res.status(409).json({ message: 'this email already register' })
 
   } else {
-    let addUser = new userModel({ userName, email, password, confirmEmail: true });
+    let addUser = new userModel({ userName, email, password, confirmEmail: true,profilePic:'https://res.cloudinary.com/dqaf8jxn5/image/upload/v1695326721/img_218090.png_vbwgzw.png' });
     // let token = jwt.sign({ id: addUser.id, isLoggedIn: true }, process.env.emailToken, { expiresIn: '1h' })
     // let refreshToken = jwt.sign({ id: addUser._id, isLoggedIn: true }, process.env.emailToken, { expiresIn: 60 * 60 * 24 })
 
