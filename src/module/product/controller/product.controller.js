@@ -7,7 +7,7 @@ import { asyncHandler } from "../../../services/asyncHandler.js";
 import { paginate } from "../../../services/pagination.js";
 
 const populate = [
-  { path: "storeId" },
+  // { path: "storeId" },
   { path: "categoryId" },
   { path: "createdBy", select: ["userName", "email"] },
   { path: "subCategoryId" },
