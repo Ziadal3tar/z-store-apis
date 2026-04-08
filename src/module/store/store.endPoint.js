@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { roles } from "../../middleware/auth.js";
 
 
@@ -8,15 +7,4 @@ export const endPoints = {
     remove:[roles.Admin,roles.User],
     search:[roles.Admin,roles.User]
 
-=======
-import { roles } from "../../middleware/auth.js";
-
-
-
-export const endPoints = {
-    create:[roles.User],
-    remove:[roles.Admin,roles.User],
-    search:[roles.Admin,roles.User]
-
->>>>>>> f59f8c9a07eb5e092a4064584f266909927768d9
 }
