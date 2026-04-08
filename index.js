@@ -35,25 +35,25 @@ app.use('*', (req, res, next) => {
 })
 app.use(globalError)
 connection()
-const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`))
-import * as socket from'./common/socket.js'
-import userModel from './DB/model/user.model.js'
-import storesModel from './DB/model/store.model.js'
-const io = socket.init(server)
-io.on("connection",(socket)=>{
-    console.log("connection");
-    socket.on('updateSocketId', async(_id)=>{
-        if (_id) {
-            const updatedUser = await userModel.findByIdAndUpdate({_id},{socketID:socket.id},{new:true})
-        }
-    })
-    socket.on('updateStoreSocketId', async(_id)=>{
-        if (_id) {
-            const updatedStore = await storesModel.findByIdAndUpdate({_id},{socketID:socket.id},{new:true})
-        }
-    })
-    socket.on('sendMessage', async (data) => {
-        console.log(data.socketID);
-        socket.to(data.socketID).emit('resevMessage', data)
-    })
-})
+// const server = app.listen(port, () => console.log(`Example app listening on port ${port}!`))
+// import * as socket from'./common/socket.js'
+// import userModel from './DB/model/user.model.js'
+// import storesModel from './DB/model/store.model.js'
+// const io = socket.init(server)
+// io.on("connection",(socket)=>{
+//     console.log("connection");
+//     socket.on('updateSocketId', async(_id)=>{
+//         if (_id) {
+//             const updatedUser = await userModel.findByIdAndUpdate({_id},{socketID:socket.id},{new:true})
+//         }
+//     })
+//     socket.on('updateStoreSocketId', async(_id)=>{
+//         if (_id) {
+//             const updatedStore = await storesModel.findByIdAndUpdate({_id},{socketID:socket.id},{new:true})
+//         }
+//     })
+//     socket.on('sendMessage', async (data) => {
+//         console.log(data.socketID);
+//         socket.to(data.socketID).emit('resevMessage', data)
+//     })
+// })
