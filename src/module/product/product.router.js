@@ -27,7 +27,7 @@ router.post(
 router.get("/getProduct/:id", productController.getProduct);
 router.get("/getSpecialProduct", productController.getSpecialProduct);
 router.put("/updateProduct/:productId", auth(endPoints.create), myMulter(fileValidation.image).array("image", 7), HME, productController.updateProduct);
-router.put("/removeProduct/:productId", auth(endPoints.create), productController.removeProduct);
+router.delete("/removeProduct/:productId", auth(endPoints.create), productController.removeProduct);
 router.get("/getStoresProducts/:id", productController.getStoresProducts);
 
 export default router
