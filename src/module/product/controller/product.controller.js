@@ -1,13 +1,22 @@
 // src/controllers/product.controller.js
 import slugify from "slugify";
-import { create, find, findById, findByIdAndDelete, findByIdAndUpdate } from "../../../../DB/DBMethods.js";
+import {
+  create,
+  find,
+  findById,
+  findByIdAndDelete,
+  findByIdAndUpdate,
+  findOne,
+} from "../../../../DB/DBMethods.js";
+import categoryModel from "../../../../DB/model/category.model.js";
+import brandModel from "../../../../DB/model/brand.model.js";
 import productModel from "../../../../DB/model/product.model.js";
 import cloudinary from "../../../services/cloudinary.js";
 import { asyncHandler } from "../../../services/asyncHandler.js";
 import { paginate } from "../../../services/pagination.js";
-
+import storesModel from "../../../../DB/model/store.model.js";
 const populate = [
-  // { path: "storeId" },
+  { path: "storeId" },
   { path: "categoryId" },
   { path: "createdBy", select: ["userName", "email"] },
   { path: "subCategoryId" },
@@ -28,16 +37,27 @@ const uploadFilesToCloudinary = async (files, folder = "products") => {
 
 
 export const addProduct = asyncHandler(async (req, res, next) => {
-  const categoryIdParam = req.params.categoryId ?? null;
-  const storeIdParam = req.params.storeId ?? null;
+const categoryIdParam = req.params.categoryId ?? null;
+const categoryIdBody = req.body.categoryId ?? null;
 
-  const categoryIdBody = req.body.categoryId ?? null;
-  const storeIdBody = req.body.storeId ?? null;
+const categoryId = categoryIdParam || categoryIdBody || null;
 
-  const storeFromUser = req.user?.storeId ?? null;
+let storeId = null;
 
-  const categoryId = categoryIdParam || categoryIdBody || null;
-  const storeId = storeIdParam || storeIdBody || storeFromUser || null;
+if (req.user?.role === "User") {
+  const userStore = await findOne({
+    model: storesModel,
+    condition: { createdBy: req.user._id },
+  });
+
+  if (!userStore) {
+    return res.status(400).json({
+      message: "You must create your store before adding products",
+    });
+  }
+
+  storeId = userStore._id;
+}
 
   if (!categoryId && productModel.schema.paths.categoryId?.isRequired) {
     return res.status(400).json({ message: "categoryId is required" });
@@ -204,19 +224,94 @@ export const getProduct = asyncHandler(async (req, res, next) => {
 
   res.status(200).json({ message: "Product found", product });
 });
-
+const escapeRegex = (value = "") => {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
 export const allProduct = asyncHandler(async (req, res, next) => {
-  const { limit, skip } = paginate(req.query.page, req.query.size);
-  const products = await find({
-    model: productModel,
+  const page = Math.max(1, Number(req.query.page) || 1);
+
+  const limit = Math.min(
+    100,
+    Math.max(
+      1,
+      Number(req.query.limit) ||
+        Number(req.query.size) ||
+        12
+    )
+  );
+
+  const search = String(req.query.q ?? "").trim();
+
+  let condition = {};
+
+  if (search) {
+    const regex = new RegExp(
+      escapeRegex(search),
+      "i"
+    );
+
+    const [categories, brands] = await Promise.all([
+      categoryModel
+        .find({ name: regex })
+        .select("_id")
+        .lean(),
+
+      brandModel
+        .find({ name: regex })
+        .select("_id")
+        .lean(),
+    ]);
+
+    const categoryIds = categories.map(
+      (category) => category._id
+    );
+
+    const brandIds = brands.map(
+      (brand) => brand._id
+    );
+
+    condition = {
+      $or: [
+        { name: regex },
+        { description: regex },
+        { tags: regex },
+
+        ...(categoryIds.length
+          ? [{ categoryId: { $in: categoryIds } }]
+          : []),
+
+        ...(brandIds.length
+          ? [{ brandId: { $in: brandIds } }]
+          : []),
+      ],
+    };
+  }
+
+  const skip = (page - 1) * limit;
+
+  const [products, total] = await Promise.all([
+    productModel
+      .find(condition)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .populate(populate),
+
+    productModel.countDocuments(condition),
+  ]);
+
+  const totalPages = Math.ceil(total / limit);
+
+  res.status(200).json({
+    message: "All products",
+    products,
+    total,
+    page,
     limit,
-    skip,
-    populate
+    totalPages,
+    hasNextPage: page < totalPages,
+    hasPrevPage: page > 1,
   });
-
-  if (!products || products.length === 0) return res.status(404).json({ message: "No products found" });
-
-  res.status(200).json({ message: "All products", products });
 });
 
 export const getSpecialProduct = asyncHandler(async (req, res, next) => {

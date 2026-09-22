@@ -63,11 +63,17 @@ const productSchema = new Schema({
         ref: "Brand",
         required: [false, 'BrandId is required'],
     },
-    createdBy: {
-        type: Types.ObjectId,
-        ref: "User",
-        required: [true, 'createdBy is required'],
-    },
+  createdBy: {
+    type: Types.ObjectId,
+    ref: "User",
+    required: [true, 'createdBy is required'],
+},
+
+storeId: {
+    type: Types.ObjectId,
+    ref: "Store",
+    required: false,
+},
     updateBy: {
         type: Types.ObjectId,
         ref: "User",
