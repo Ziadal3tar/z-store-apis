@@ -85,12 +85,14 @@ export const allSubCategoriesFromCategory = asyncHandler(async (req, res, next) 
 })
 export const removeSubCategory = async (req, res, next) => {
     const { subCategoryId } = req.params
-    let deleteSubCategory = await findByIdAndDelete({ model: subCategoryModel, condition: subCategoryId })
+    console.log(subCategoryId);
+    
+    let deleteSubCategory = await findByIdAndDelete({ model: subCategoryModel, condition: {_id:subCategoryId} })
     if (!deleteSubCategory) {
         res.status(404).json({message:"SubCategory not found"})
 
     } else {
-        let products = await find({ model: productModel, condition: { subCategoryId: _id }})
+        let products = await find({ model: productModel, condition: { subCategoryId: subCategoryId }})
         for (let i = 0; i < products.length; i++) {
             const element = products[i];
             await findByIdAndDelete({model:productModel,condition:element._id})
