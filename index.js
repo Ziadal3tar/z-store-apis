@@ -89,7 +89,7 @@ app.use('/newsletter', indexRouter.newsletterRouter);
 app.use('/contact', indexRouter.contactRouter);
 
 app.get('/', (_req, res) => {
-  res.json({ message: 'Z-Store API', status: 'ok' });
+  res.json({ message: 'Z-Store API-1', status: 'ok' });
 });
 
 app.use((_req, res) => {
