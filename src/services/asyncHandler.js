@@ -1,31 +1,24 @@
 export function asyncHandler(fn) {
-    return (req, res, next) => {
-        fn(req, res, next).catch(err => {
-            
-            res.status(500).json(err.message)
-        })
-    }
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
 }
-
-
 
 export const globalError = (err, req, res, next) => {
-    if (err) {
-        if (process.env.ENV == 'DEV') {
-            res.status(err['cause']).json({
-                message: err.message,
-                stack: err.stack,
-                status: err['cause']
-            })
-        } else {
-            res.status(err['cause']).json({
-                message: err.message,
-                status: err['cause']
-            })
-        }
+  if (res.headersSent) return next(err);
 
-    }
-}
+  const status = Number(err?.statusCode || err?.status || err?.cause) || 500;
+  const message = status >= 500 && process.env.NODE_ENV === 'production'
+    ? 'Internal server error.'
+    : String(err?.message || 'Something went wrong.');
 
+  if (process.env.NODE_ENV !== 'production') {
+    return res.status(status).json({
+      message,
+      status,
+      stack: err?.stack,
+    });
+  }
 
-
+  return res.status(status).json({ message, status });
+};

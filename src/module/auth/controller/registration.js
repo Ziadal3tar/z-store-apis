@@ -15,10 +15,12 @@ import {
   findByIdAndUpdate as _findByIdAndUpdate // (if helper has different signature)
 } from '../../../../DB/DBMethods.js';
 import cloudinary from '../../../services/cloudinary.js';
+import { destroyCloudinaryAsset } from "../../../services/cloudinary.safe.js";
 import adminModel from '../../../../DB/model/admin.model.js';
 import cartModel from '../../../../DB/model/cart.model.js';
 import storesModel from '../../../../DB/model/store.model.js';
 import productModel from '../../../../DB/model/product.model.js';
+import { cacheDelete, cacheKey } from '../../../services/cache.service.js';
 
 const adminpopulate = [
   {
@@ -32,29 +34,23 @@ const allUserpopulate = [
   { path: "cartId" },
 ];
 
+const userProductSelect =
+  "_id name images stock price discount finalPrice ratingAverage sku categoryId subCategoryId brandId storeId createdAt updatedAt";
+
 const userpopulate = [
   {
     path: "wishlist",
-    populate: [
-      { path: "brandId" },
-      { path: "categoryId" },
-      { path: "subCategoryId" },
-    ],
+    select: userProductSelect,
+    options: { lean: true },
   },
   {
     path: "cartId",
-    populate: { path: "products.productId" },
-  },
-  {
-    path: "chats",
-    populate: [
-      {
-        path: "messages",
-        populate: [{ path: "sender" }, { path: "receiver" }],
-      },
-      { path: "userId" },
-      { path: "storeId" },
-    ],
+    select: "_id userId products createdAt updatedAt",
+    populate: {
+      path: "products.productId",
+      select: userProductSelect,
+      options: { lean: true },
+    },
   },
 ];
 
@@ -76,6 +72,7 @@ export const signUp = asyncHandler(async (req, res, next) => {
   });
 
   const savedUser = await addUser.save();
+  await cacheDelete(cacheKey('admin-summary'));
   res.status(201).json({ message: "added successfully", savedUser });
 });
 
@@ -159,11 +156,25 @@ export const logIn = asyncHandler(async (req, res, next) => {
     expiresIn: 60 * 60 * 24 * 2,
   });
 
-  res.status(200).json({ message: "welcome", token, id: user._id });
+  const userSnapshot = await userModel
+    .findById(user._id)
+    .select('_id userName email phone role profilePic cart cartId storeId loyaltyPoints country city postCode postalCode street building apartment')
+    .lean();
+
+  res.status(200).json({
+    message: 'welcome',
+    token,
+    id: user._id,
+    user: userSnapshot,
+  });
 });
 
 export const allUser = asyncHandler(async (req, res, next) => {
-  const users = await find({ model: userModel, populate: [...allUserpopulate] });
+  const users = await userModel
+    .find({})
+    .select('_id userName email phone role profilePic blocked confirmEmail storeId createdAt')
+    .sort({ createdAt: -1 })
+    .lean();
   if (!users || users.length === 0) {
     return res.status(404).json({ message: 'no users' });
   }
@@ -184,7 +195,9 @@ export const removeUser = asyncHandler(async (req, res, next) => {
   }
 
   // delete cart
-  if (user.cart) {
+  if (user.cartId) {
+    await findByIdAndDelete({ model: cartModel, condition: { _id: user.cartId } });
+  } else {
     await findOneAndDelete({ model: cartModel, condition: { userId: _id } });
   }
 
@@ -192,19 +205,24 @@ export const removeUser = asyncHandler(async (req, res, next) => {
   if (user.storeId) {
     const storeId = user.storeId;
     const store = await findById({ model: storesModel, condition: storeId });
-    if (store && Array.isArray(store.storeProduct) && store.storeProduct.length) {
-      for (const productId of store.storeProduct) {
-        await findByIdAndDelete({ model: productModel, condition: productId });
+    const storeProducts = await productModel.find({ storeId }).select('_id publicImagesIds').lean();
+    for (const product of storeProducts) {
+      await findByIdAndDelete({ model: productModel, condition: product._id });
+      if (Array.isArray(product.publicImagesIds) && product.publicImagesIds.length) {
+        await Promise.all(product.publicImagesIds.map((id) => destroyCloudinaryAsset(id)));
       }
     }
     await findByIdAndDelete({ model: storesModel, condition: storeId });
+    if (store?.storeImageId) {
+      await destroyCloudinaryAsset(store.storeImageId);
+    }
   }
 
   const deletedUser = await findByIdAndDelete({ model: userModel, condition: { _id } });
 
   if (deletedUser) {
     if (user.public_id) {
-      await cloudinary.uploader.destroy(user.public_id);
+      await destroyCloudinaryAsset(user.public_id);
     }
     return res.status(200).json({ message: "deleted", deletedUser });
   }
@@ -256,6 +274,31 @@ export const updateRole = asyncHandler(async (req, res, next) => {
   res.json({ message: "Admin is added", updatedRole });
 });
 
+
+export const getMe = asyncHandler(async (req, res) => {
+  const user = await userModel
+    .findById(req.user._id)
+    .select('_id userName email phone role profilePic cart cartId storeId wishlist loyaltyPoints country city postCode postalCode street house building entrance floor apartment comment DOB createdAt updatedAt')
+    .populate({
+      path: 'wishlist',
+      select: userProductSelect,
+      options: { lean: true },
+    })
+    .populate({
+      path: 'cartId',
+      select: '_id userId products createdAt updatedAt',
+      populate: {
+        path: 'products.productId',
+        select: userProductSelect,
+        options: { lean: true },
+      },
+    })
+    .lean();
+
+  if (!user) return res.status(404).json({ message: 'user not found' });
+  res.status(200).json({ message: 'user', user });
+});
+
 export const getUser = asyncHandler(async (req, res, next) => {
   const { token } = req.params;
   const decoded = jwt.verify(token, process.env.tokenSignature);
@@ -263,6 +306,7 @@ export const getUser = asyncHandler(async (req, res, next) => {
   const user = await findById({
     model: userModel,
     condition: decoded.id,
+    select: "_id userName email phone role profilePic cart cartId storeId wishlist",
     populate: [...userpopulate],
   });
 
@@ -289,33 +333,36 @@ export const getUserById = asyncHandler(async (req, res, next) => {
   res.status(200).json({ message: "user", user });
 });
 
-export const editProfilePic = asyncHandler(async (req, res, next) => {
+export const editProfilePic = asyncHandler(async (req, res) => {
   if (!req.file) {
     return res.status(422).json({ message: "you have to upload an image" });
   }
 
-  const { id } = req.body;
-  const uploadRes = await cloudinary.uploader.upload(req.file.path, {
-    folder: "usersImages",
-  });
+  const id = req.user._id;
+  const current = await userModel.findById(id).select('public_id').lean();
+  const uploadRes = await cloudinary.uploader.upload(req.file.path, { folder: "usersImages" });
 
-  const { secure_url, public_id } = uploadRes;
-  const result = await findByIdAndUpdate({
-    model: userModel,
-    condition: { _id: id },
-    data: { profilePic: secure_url, public_id },
-  });
+  try {
+    const updatedUser = await userModel.findByIdAndUpdate(
+      id,
+      { profilePic: uploadRes.secure_url, public_id: uploadRes.public_id },
+      { new: true, runValidators: true, select: '_id userName email phone role profilePic public_id' },
+    ).lean();
 
-  if (!result) {
-    await cloudinary.uploader.destroy(public_id);
-    return res.status(400).json({ message: "update failed" });
+    if (!updatedUser) {
+      await destroyCloudinaryAsset(uploadRes.public_id);
+      return res.status(404).json({ message: "user not found" });
+    }
+
+    if (current?.public_id && current.public_id !== uploadRes.public_id) {
+      await destroyCloudinaryAsset(current.public_id);
+    }
+
+    return res.status(200).json({ message: "updated", result: updatedUser });
+  } catch (error) {
+    await destroyCloudinaryAsset(uploadRes.public_id);
+    throw error;
   }
-
-  if (result.public_id) {
-    await cloudinary.uploader.destroy(result.public_id);
-  }
-
-  res.status(201).json({ message: "created", result });
 });
 
 export const addAdmin = asyncHandler(async (req, res, next) => {
@@ -396,6 +443,10 @@ export const getAllAdmins = asyncHandler(async (req, res, next) => {
 
 export const updateUser = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
+  if (String(req.user._id) !== String(id) && req.user.role !== 'Admin') {
+    return res.status(403).json({ message: 'Not authorized' });
+  }
+
   const user = await findById({ model: userModel, condition: id });
 
   if (!user) {
@@ -442,6 +493,35 @@ export const updateUser = asyncHandler(async (req, res, next) => {
   }
 
   res.status(400).json({ message: "invalid update type" });
+});
+
+export const updateProfile = asyncHandler(async (req, res) => {
+  const allowed = [
+    'phone', 'DOB', 'country', 'city', 'postCode', 'postalCode',
+    'street', 'house', 'building', 'entrance', 'floor', 'apartment', 'comment',
+  ];
+
+  const data = Object.fromEntries(
+    allowed
+      .filter((key) => req.body?.[key] !== undefined)
+      .map((key) => [key, typeof req.body[key] === 'string' ? req.body[key].trim() : req.body[key]]),
+  );
+
+  const firstName = String(req.body?.firstName ?? '').trim();
+  const lastName = String(req.body?.lastName ?? '').trim();
+  if (firstName || lastName) {
+    data.userName = `${firstName} ${lastName}`.trim();
+  }
+
+  const user = await userModel
+    .findByIdAndUpdate(req.user._id, data, { new: true, runValidators: true })
+    .select('_id userName email phone role blocked profilePic DOB country city postCode postalCode street house building entrance floor apartment comment loyaltyPoints wishlist cart cartId storeId createdAt updatedAt')
+    .populate({ path: 'wishlist', select: userProductSelect, options: { lean: true } })
+    .populate({ path: 'cartId', select: '_id userId products createdAt updatedAt', populate: { path: 'products.productId', select: userProductSelect, options: { lean: true } } })
+    .lean();
+
+  if (!user) return res.status(404).json({ message: 'user not found' });
+  res.status(200).json({ message: 'profile updated', user });
 });
 
 export const sendEmaiil = asyncHandler(async (req, res, next) => {

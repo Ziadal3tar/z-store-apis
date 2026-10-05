@@ -27,15 +27,15 @@ const userSchema = new Schema({
     },
     active: {
         type: Boolean,
-        default: 'false',
+        default: false,
     },
     confirmEmail: {
         type: Boolean,
-        default: 'false',
+        default: false,
     },
     blocked: {
         type: Boolean,
-        default: 'false',
+        default: false,
     },
     profilePic:{ 
         type:String,
@@ -43,9 +43,20 @@ const userSchema = new Schema({
     },
     public_id: String,
     DOB: String,
+    country: String,
+    city: String,
+    postCode: String,
+    postalCode: String,
+    street: String,
+    house: String,
+    building: String,
+    entrance: String,
+    floor: String,
+    apartment: String,
+    comment: String,
     cart: {
         type: Boolean,
-        default: 'false',
+        default: false,
     },
     cartId: {
         type: Types.ObjectId,
@@ -55,7 +66,12 @@ const userSchema = new Schema({
         type: Types.ObjectId,
         ref: "Store",
       },
-      wishlist: [
+      loyaltyPoints: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+    wishlist: [
       {
         type: Types.ObjectId,
         ref: "Product",

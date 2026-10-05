@@ -1,23 +1,15 @@
-import { Router } from "express";
-import { auth } from "../../middleware/auth.js";
-import { endPoints } from "./cart.endPoint.js";
-import * as cartController from './controller/cart.controller.js'
-const router = Router()
+import { Router } from 'express';
+import { auth } from '../../middleware/auth.js';
+import { endPoints } from './cart.endPoint.js';
+import * as cartController from './controller/cart.controller.js';
 
+const router = Router();
 
+router.get('/', (_req, res) => res.status(200).json({ message: 'Cart module' }));
+router.post('/createCart', auth(endPoints.create), cartController.createCart);
+router.get('/allCarts', auth(endPoints.create), cartController.allCarts);
+router.get('/me', auth(endPoints.create), cartController.getMyCart);
+router.put('/deleteFromCart', auth(endPoints.create), cartController.deleteFromCart);
+router.patch('/changeQuantity', auth(endPoints.create), cartController.changeQuantity);
 
-router.get("/", (req, res) => {
-    res.status(200).json({ message: 'cart Module' })
-})
-
-router.post("/createCart",auth(endPoints.create),cartController.createCart)
-router.delete("/removeWishList/:productId", auth(endPoints.create), cartController.removeWishList);
-
-router.get("/allCarts",cartController.allCarts)
-router.put("/deleteFromCart",cartController.deleteFromCart)
-router.get("/getCart/:token",cartController.getCart)
-router.patch("/changeQuantityOfProductInCart/:token",cartController.changeQuantityOfProductInCart)
-
-
-
-export default router
+export default router;
