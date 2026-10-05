@@ -22,7 +22,7 @@ const allowedOrigins = [
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
-  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:4200', 'http://127.0.0.1:4200']),
+  ...(process.env.NODE_ENV === 'production' ? [] : ['http://localhost:4200', 'https://ziadal3tar.github.io/z-store']),
 ];
 
 app.use(cors({
